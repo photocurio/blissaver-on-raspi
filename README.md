@@ -46,12 +46,12 @@ This guide shows how to build a dedicated Mac OS 9 screensaver appliance using:
 2. **Mac OS 9.0.4 Installer** (~600MB)
    - Bootable .toast or .iso format
    - Example: `MacOS-9-0-4.toast`
-   - Source: Macintosh Garden
+   - Source: [Macintosh Garden](https://macintoshgarden.org/apps/macintosh-system-922-1021-power-macintosh-g4-mirrored-drive-doors-mdd#Mac_OS_9.0.4)
 
 3. **Bliss Saver Screensavers**
    - PowerPC versions (NOT 68k versions)
    - Bliss Saver, Waves of Bliss, Space Garden
-	 - Stuffit Expander (vintage mac software), to open .site files
+	 - Stuffit Expander (vintage mac software), to open .sit files
 
 **Get these on a USB drive before starting.**
 
@@ -64,9 +64,11 @@ This guide shows how to build a dedicated Mac OS 9 screensaver appliance using:
 #### 1. Install Raspberry Pi OS Lite
 
 ```bash
-# Flash Raspberry Pi OS Lite (64-bit) to SD card using Raspberry Pi Imager
+# Flash Raspberry Pi OS (64-bit)
+# to SD card using Raspberry Pi Imager.
 # Enable SSH during setup if you want remote access
 # Boot the Pi and login (default: pi/raspberry or set during setup)
+# Connect a monitor and keyboard
 ```
 
 #### 2. Update System
