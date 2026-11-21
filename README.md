@@ -18,13 +18,15 @@ This guide shows how to build a dedicated Mac OS 9 screensaver appliance using:
 - PowerPC FPU emulation works correctly on ARM64 (unlike 68k emulation)
 - Boots directly to Mac OS 9 with no Linux visible
 
+> **Username:** Wherever you see `YOUR_USERNAME` below (config paths, auto-login, SSH), replace it with the username you created when flashing the SD card.
+
 ---
 
 ## Hardware Requirements
 
 ### Minimum
 - Raspberry Pi 4B or newer
-- 4GB+ microSD card
+- 8GB+ microSD card (16GB recommended: the OS, build tools, a ~600MB installer and an 800MB disk image add up)
 - HDMI monitor/TV
 - 5V 3A Power supply
 - USB keyboard
@@ -51,7 +53,11 @@ This guide shows how to build a dedicated Mac OS 9 screensaver appliance using:
 3. **Bliss Saver Screensavers**
    - PowerPC versions (NOT 68k versions)
    - Bliss Saver, Waves of Bliss, Space Garden
-	 - Stuffit Expander (vintage mac software), to open .sit files
+
+4. **StuffIt Expander** (vintage Mac software)
+   - Needed to open .sit archives inside Mac OS 9
+
+You need to source the ROM and Mac OS installer yourself. They are not included in this repository.
 
 **Get these on a USB drive before starting.**
 
@@ -92,7 +98,7 @@ sudo apt install --no-install-recommends \
 - `build-essential` - Compiler toolchain
 - `autoconf`/`automake` - Build system
 - `libsdl2-dev` - Graphics and input
-- `libgtk2-dev` - GUI toolkit
+- `libgtk2.0-dev` - GUI toolkit (only used by SheepShaver's settings window; this guide runs with `nogui true`)
 - `libgmp-dev`/`libmpfr-dev` - Math libraries (required for ARM64)
 - `xserver-xorg`/`xinit` - Minimal X11 server (no desktop environment)
 
@@ -168,6 +174,9 @@ cp /mnt/usb/*.toast ~/sheepshaver/
 # Copy Bliss Saver files
 cp -r /mnt/usb/BlissSaver* ~/sheepshaver/Shared/
 
+# Copy StuffIt Expander (adjust the name to match your file)
+cp -r /mnt/usb/StuffIt* ~/sheepshaver/Shared/
+
 # Unmount USB
 cd ~
 sudo umount /mnt/usb
@@ -214,10 +223,10 @@ nano ~/.config/SheepShaver/prefs
 
 ```
 # ==================== ROM & STORAGE ====================
-rom /home/peter/sheepshaver/960FC647.ROM
-disk /home/peter/sheepshaver/MacOS-9-0-4.toast
-disk /home/peter/sheepshaver/macos9.img
-extfs /home/peter/sheepshaver/Shared
+rom /home/YOUR_USERNAME/sheepshaver/960FC647.ROM
+disk /home/YOUR_USERNAME/sheepshaver/MacOS-9-0-4.toast
+disk /home/YOUR_USERNAME/sheepshaver/macos9.img
+extfs /home/YOUR_USERNAME/sheepshaver/Shared
 
 # ==================== DISPLAY ====================
 screen dga/640/480
@@ -293,11 +302,15 @@ nano ~/start-sheepshaver.sh
 
 ```bash
 #!/bin/bash
+# Use your own home directory even when launched with sudo,
+# so SheepShaver finds ~/.config/SheepShaver/prefs and the binary
+export HOME=/home/YOUR_USERNAME
 xset s off -dpms s noblank
-exec ~/macemu/SheepShaver/src/Unix/SheepShaver 2>/dev/null
+exec "$HOME/macemu/SheepShaver/src/Unix/SheepShaver" 2>/dev/null
 ```
 
 **What this does:**
+- Pins `HOME` to your user's home directory (`sudo` would otherwise change it to `/root`)
 - Disables screen blanking
 - Launches SheepShaver
 - Suppresses debug messages
@@ -318,6 +331,14 @@ chmod +x ~/start-sheepshaver.sh
 
 ```bash
 sudo xinit ~/start-sheepshaver.sh -- :0 vt1
+```
+
+`sudo` is needed here because X won't start from an SSH session for a normal user. The `export HOME=...` line in the startup script makes sure SheepShaver still uses your prefs file rather than looking in `/root`.
+
+**Or, from the Pi's own keyboard** (logged in on the console), no `sudo` needed:
+
+```bash
+startx ~/start-sheepshaver.sh
 ```
 
 **On your monitor you'll see:**
@@ -359,8 +380,8 @@ nano ~/.config/SheepShaver/prefs
 **Move hard disk first (or comment out installer):**
 
 ```
-disk /home/peter/sheepshaver/macos9.img
-# disk /home/peter/sheepshaver/MacOS-9-0-4.toast
+disk /home/YOUR_USERNAME/sheepshaver/macos9.img
+# disk /home/YOUR_USERNAME/sheepshaver/MacOS-9-0-4.toast
 ```
 
 **Save and exit.**
@@ -422,7 +443,7 @@ sudo systemctl edit --full getty@tty1
 **Find the ExecStart line and change to:**
 
 ```
-ExecStart=-/sbin/agetty --autologin peter --noclear %I ${TERM}
+ExecStart=-/sbin/agetty --autologin YOUR_USERNAME --noclear %I ${TERM}
 ```
 
 **Save and exit.**
@@ -443,9 +464,11 @@ nano ~/.bash_profile
 
 ```bash
 if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
-    startx ~/start-sheepshaver.sh
+    exec startx ~/start-sheepshaver.sh
 fi
 ```
+
+`exec` replaces the login shell with X, so if SheepShaver exits or crashes, the session ends and getty logs you back in, restarting it. Without `exec` you'd be left at a logged-in shell on screen.
 
 **Save and exit.**
 
@@ -503,7 +526,7 @@ sudo reboot
 **SSH in for maintenance:**
 
 ```bash
-ssh peter@raspberrypi
+ssh YOUR_USERNAME@raspberrypi
 ```
 
 **Kill and restart SheepShaver:**
@@ -519,23 +542,25 @@ sudo reboot
 
 **Bliss Saver crashes after ~6 hours due to Mac OS 9 memory leak.**
 
-**Solution: Reboot every 5 hours:**
+**Solution: Reboot on a schedule from root's crontab:**
 
 ```bash
-crontab -e
+sudo crontab -e
 ```
 
 **Add:**
 
 ```
-0 */5 * * * sudo reboot
+0 */4 * * * /sbin/reboot
 ```
+
+This reboots every 4 hours, comfortably inside the ~6-hour crash window. Cron intervals only space evenly when they divide 24, so `*/5` would fire at 00, 05, 10, 15 and 20, then again at midnight after just 4 hours. Using root's crontab means no `sudo` password is needed.
 
 ### Common Issues
 
 **Problem:** X server exits immediately
 
-**Solution:** Check prefs file paths match actual filenames exactly
+**Solution:** Check prefs file paths match actual filenames exactly, and that `YOUR_USERNAME` has been replaced everywhere (prefs and startup script)
 
 ---
 
@@ -605,7 +630,7 @@ dmesg                                      - Kernel messages
 
 ### RAM Allocation
 
-**Pi 3B (1GB total):**
+**Default (any Pi, used in the config above):**
 ```
 ramsize 268435456       # 256MB
 ```
